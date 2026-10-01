@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function hasRole(role) {
+      return signedIn() && profile().role == role;
+    }
+    function linkedStudent(studentId) {
+      return hasRole('parent') && studentId in profile().studentIds;
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || hasRole('teacher'));
+      allow create, delete: if false;
+      allow update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens', 'lastSeenAt']);
+    }
+
+    match /attendance/{recordId} {
+      allow read: if hasRole('teacher')
+        || (hasRole('student') && resource.data.studentId == request.auth.uid)
+        || linkedStudent(resource.data.studentId);
+      allow write: if false;
+    }
+
+    match /grades/{gradeId} {
+      allow read: if hasRole('teacher')
+        || (hasRole('student') && resource.data.studentId == request.auth.uid)
+        || linkedStudent(resource.data.studentId);
+      allow write: if false;
+    }
+
+    match /fees/{feeId} {
+      allow read: if linkedStudent(resource.data.studentId);
+      allow write: if false;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if signedIn() && resource.data.parentId == request.auth.uid;
+      allow write: if false;
+    }
+
+    match /announcements/{announcementId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+  }
+}
