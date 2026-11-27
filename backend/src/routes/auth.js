@@ -93,7 +93,7 @@ router.get('/setup-status', async (_request, response) => {
     return response.json({ setupRequired });
   } catch (error) {
     console.error('Setup status failed:', error.message);
-    return response.status(500).json({ error: 'Unable to check school setup status.', setupRequired: true });
+    return response.status(503).json({ error: 'Firebase/Firestore is temporarily unavailable.', setupRequired: true });
   }
 });
 
@@ -140,8 +140,9 @@ router.post('/setup-school', async (request, response) => {
     });
   } catch (error) {
     console.error('School setup failed:', error.message);
-    const status = error.code === 'auth/id-token-expired' || error.code === 'auth/argument-error' ? 401 : 500;
-    return response.status(status).json({ error: error.message || 'Unable to complete school setup.' });
+    const credentialFailure = error.code === 'app/invalid-credential' || error.code === 16 || /credential|permission|Firestore/i.test(error.message);
+    const status = credentialFailure ? 503 : (error.code === 'auth/id-token-expired' || error.code === 'auth/argument-error' ? 401 : 400);
+    return response.status(status).json({ error: credentialFailure ? 'Firebase Admin/Firestore is not connected yet.' : (error.message || 'Unable to complete school setup.') });
   }
 });
 
