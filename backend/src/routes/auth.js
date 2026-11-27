@@ -82,6 +82,69 @@ router.post('/login', async (request, response) => {
   }
 });
 
+router.get('/setup-status', async (_request, response) => {
+  const firestore = getFirestore();
+  if (!firestore) return response.status(503).json({ error: 'Firebase Admin is not configured on the backend.', setupRequired: true });
+
+  try {
+    const schoolSnapshot = await firestore.collection('schools').doc('main').get();
+    const adminSnapshot = await firestore.collection('admins').limit(1).get();
+    const setupRequired = !schoolSnapshot.exists && adminSnapshot.empty;
+    return response.json({ setupRequired });
+  } catch (error) {
+    console.error('Setup status failed:', error.message);
+    return response.status(500).json({ error: 'Unable to check school setup status.', setupRequired: true });
+  }
+});
+
+router.post('/setup-school', async (request, response) => {
+  const firebaseAdmin = getFirebaseAdmin();
+  const firestore = getFirestore();
+  if (!firebaseAdmin || !firestore) return response.status(503).json({ error: 'Firebase Admin is not configured on the backend.' });
+
+  const authorization = request.get('authorization') || '';
+  if (!authorization.startsWith('Bearer ')) return response.status(401).json({ error: 'Firebase ID token is required.' });
+
+  try {
+    const decoded = await firebaseAdmin.auth().verifyIdToken(authorization.slice(7));
+    const schoolRef = firestore.collection('schools').doc('main');
+    const schoolSnapshot = await schoolRef.get();
+    const adminSnapshot = await firestore.collection('admins').limit(1).get();
+    if (schoolSnapshot.exists || !adminSnapshot.empty) {
+      return response.status(409).json({ error: 'School setup has already been completed.' });
+    }
+
+    const { schoolName, adminName, phone = '', address = '' } = request.body;
+    if (typeof schoolName !== 'string' || schoolName.trim().length < 2 || typeof adminName !== 'string' || adminName.trim().length < 2) {
+      return response.status(400).json({ error: 'Enter a school name and administrator name.' });
+    }
+
+    const email = String(decoded.email || '').trim().toLowerCase();
+    if (!email) return response.status(400).json({ error: 'The administrator account must have an email address.' });
+
+    await saveRoleProfile({ uid: decoded.uid, name: adminName.trim(), email, role: 'admin' });
+
+    await schoolRef.create({
+      name: schoolName.trim(),
+      adminUid: decoded.uid,
+      adminName: adminName.trim(),
+      adminEmail: email,
+      phone: String(phone).trim(),
+      address: String(address).trim(),
+      createdAt: new Date().toISOString(),
+    });
+
+    return response.status(201).json({
+      user: { id: decoded.uid, email, name: adminName.trim(), role: 'admin', schoolName: schoolName.trim() },
+      claimsRefreshRequired: true,
+    });
+  } catch (error) {
+    console.error('School setup failed:', error.message);
+    const status = error.code === 'auth/id-token-expired' || error.code === 'auth/argument-error' ? 401 : 500;
+    return response.status(status).json({ error: error.message || 'Unable to complete school setup.' });
+  }
+});
+
 router.post('/profile', async (request, response) => {
   const firebaseAdmin = getFirebaseAdmin();
   const firestore = getFirestore();
@@ -107,14 +170,19 @@ router.post('/profile', async (request, response) => {
     let profileSnapshot = await profileRef.get();
 
     if (!profileSnapshot.exists) {
-      const adminUids = new Set((process.env.ADMIN_UIDS || '').split(',').map((uid) => uid.trim()).filter(Boolean));
-      const role = adminUids.has(decoded.uid) ? 'admin' : 'student';
-      if (role === 'admin') {
-        await saveRoleProfile({ uid: decoded.uid, name: decoded.name || decoded.email || 'Administrator', email: decoded.email || '', role });
-      } else {
-        await addStudent(decoded.uid, decoded.name || decoded.email?.split('@')[0] || 'Student', decoded.email || '');
+      const schoolSnapshot = await firestore.collection('schools').doc('main').get();
+      const selectedRole = request.body.role;
+
+      if (!schoolSnapshot.exists) {
+        return response.status(409).json({ error: 'School setup is required before creating a profile.', setupRequired: true });
       }
-      profileSnapshot = await profileRef.get();
+
+      if (selectedRole === 'student') {
+        await addStudent(decoded.uid, decoded.name || decoded.email?.split('@')[0] || 'Student', decoded.email || '');
+        profileSnapshot = await profileRef.get();
+      } else {
+        return response.status(403).json({ error: 'This account has not been provisioned by the school administrator.' });
+      }
     }
 
     if (!profileSnapshot.exists) {
@@ -127,13 +195,6 @@ router.post('/profile', async (request, response) => {
     }
     if (request.body.role && request.body.role !== profile.role) {
       return response.status(403).json({ error: 'The selected role does not match your school account.' });
-    }
-
-    if (profile.role === 'admin') {
-      const adminUids = (process.env.ADMIN_UIDS || '').split(',').map((uid) => uid.trim()).filter(Boolean);
-      if (!adminUids.includes(decoded.uid)) {
-        return response.status(403).json({ error: 'Administrator access has not been provisioned for this account.' });
-      }
     }
 
     const roleCollection = `${profile.role}s`;

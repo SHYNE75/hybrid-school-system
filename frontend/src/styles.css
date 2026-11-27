@@ -377,4 +377,8 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
 .limited-mode-banner span { font-size: 9px; line-height: 1.5; }
 .forgot-password { background: transparent; border: 0; color: #55775f; cursor: pointer; display: block; font-size: 10px; font-weight: 700; margin: -5px 0 12px auto; padding: 0; }
 .forgot-password:hover { color: #315e4a; text-decoration: underline; }
-.reset-success { background: #edf4eb; border-radius: 4px; color: #55775f; font-size: 10px; line-height: 1.5; margin: 0 0 10px; padding: 9px 10px; }
+.reset-success { background: #edf4eb; border-radius: 4px; color: #55775f; font-size: 10px; line-height: 1.5; margin: 0 0 10px; }
+.setup-checking { color: #929b93; font-size: 10px; padding: 12px 0; text-align: center; }
+.school-setup-form { display: grid; gap: 12px; }
+.school-setup-form textarea { background: #fff; border: 1px solid #e6e9e2; border-radius: 4px; color: #334138; font-size: 11px; outline: none; padding: 8px 11px; resize: vertical; }
+.school-setup-form textarea:focus { border-color: #84a187; box-shadow: 0 0 0 3px #eaf1e9; }
