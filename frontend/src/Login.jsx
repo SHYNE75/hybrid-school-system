@@ -18,6 +18,7 @@ function Login({ onAuthenticated }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
@@ -39,29 +40,7 @@ function Login({ onAuthenticated }) {
             body: JSON.stringify({ role }),
           });
         } catch (profileError) {
-          const unavailable = /Firebase Admin|Firebase credential|could not load|cannot reach|non-JSON|HTML/i.test(profileError.message);
-          if (!unavailable) throw profileError;
-
-          let refreshedUser;
-          try {
-            refreshedUser = await firebaseAuth.refreshIdToken(user.refreshToken);
-          } catch {
-            refreshedUser = { id_token: user.idToken, refresh_token: user.refreshToken };
-          }
-          onAuthenticated({
-            id: user.localId,
-            email: user.email,
-            name: name.trim() || user.displayName || user.email?.split('@')[0] || 'School user',
-            role,
-            studentIds: role === 'student' ? [user.localId] : [],
-            linkedStudents: [],
-            token: refreshedUser.id_token,
-            refreshToken: refreshedUser.refresh_token,
-            provider: 'firebase',
-            limitedMode: true,
-          });
-          setPassword('');
-          return;
+          throw new Error(profileError.message || 'Sign-in succeeded, but the backend could not load your school profile.');
         }
 
         const refreshedUser = await firebaseAuth.refreshIdToken(user.refreshToken);
@@ -84,6 +63,24 @@ function Login({ onAuthenticated }) {
       }
     } catch (submitError) {
       setError(submitError.message || 'Unable to sign in. Check your details and try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendPasswordReset() {
+    setError('');
+    setResetSent(false);
+    if (!email.trim() || !firebaseAuth) {
+      setError(firebaseAuth ? 'Enter your email address first.' : 'Password reset requires Firebase Authentication to be configured.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await firebaseAuth.sendPasswordReset(email.trim());
+      setResetSent(true);
+    } catch (resetError) {
+      setError(resetError.message || 'Unable to send the password reset email.');
     } finally {
       setLoading(false);
     }
@@ -112,6 +109,8 @@ function Login({ onAuthenticated }) {
           {!firebaseAuth && <p className="auth-mode-note">Firebase isn’t configured yet; sign-in uses the Express API.</p>}
           <div className="login-card-foot">By continuing, you agree to the school’s <a href="#privacy">acceptable use policy</a>.</div>
         </section>
+        {resetSent && <div className="reset-success" role="status">Password reset email sent. Check your inbox and spam folder.</div>}
+        {mode === 'login' && <button type="button" className="forgot-password" onClick={sendPasswordReset} disabled={loading}>Forgot password?</button>}
       </section>
       <footer className="login-footer"><span>© 2024 Abiola Academy</span><span>Learning happens everywhere <span className="footer-leaf">✳</span></span></footer>
     </main>

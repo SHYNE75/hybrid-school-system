@@ -58,6 +58,18 @@ export const firebaseAuth = apiKey ? {
     }
     return result;
   },
+  async sendPasswordReset(email) {
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestType: 'PASSWORD_RESET', email }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(firebaseAuthError(result.error?.message));
+    }
+    return result;
+  },
   async refreshIdToken(refreshToken) {
     const response = await fetch(`https://securetoken.googleapis.com/v1/token?key=${apiKey}`, {
       method: 'POST',

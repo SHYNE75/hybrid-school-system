@@ -350,7 +350,6 @@ function App() {
         </header>
 
         <div className="page-content">
-          {session.limitedMode && <div className="limited-mode-banner"><strong>Limited mode</strong><span>Firebase Authentication is active, but server profile/Firestore setup is not configured. Use demo navigation only until Firebase Admin is connected.</span></div>}
           <section className="welcome-row">
             <div><div className="eyebrow"><span className="eyebrow-dot" />{current.eyebrow}</div><h1>{activeSection === 'Overview' ? `${current.title}, ${firstName}` : current.title}<span className="title-period">.</span></h1><p>{current.subtitle}</p></div>
             <button className="primary-button" onClick={() => notify(activeSection === 'Attendance' ? 'Attendance register opened.' : activeSection === 'Grades' && role === 'teacher' ? 'Grade entry is coming in the next module.' : 'Your workspace is up to date.')}><span>+</span>{activeSection === 'Attendance' && role === 'teacher' ? 'Take attendance' : activeSection === 'Grades' && role === 'teacher' ? 'Add grades' : 'Quick action'}</button>

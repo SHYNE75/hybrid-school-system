@@ -375,3 +375,6 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
 .limited-mode-banner { align-items: center; background: #fff8e7; border: 1px solid #eadbaf; border-radius: 7px; color: #776640; display: flex; gap: 10px; margin-bottom: 14px; padding: 10px 12px; }
 .limited-mode-banner strong { color: #80652f; font-size: 10px; white-space: nowrap; }
 .limited-mode-banner span { font-size: 9px; line-height: 1.5; }
+.forgot-password { background: transparent; border: 0; color: #55775f; cursor: pointer; display: block; font-size: 10px; font-weight: 700; margin: -5px 0 12px auto; padding: 0; }
+.forgot-password:hover { color: #315e4a; text-decoration: underline; }
+.reset-success { background: #edf4eb; border-radius: 4px; color: #55775f; font-size: 10px; line-height: 1.5; margin: 0 0 10px; padding: 9px 10px; }
