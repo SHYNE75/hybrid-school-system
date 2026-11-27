@@ -24,7 +24,7 @@ async function authenticate(request, response, next) {
     const decoded = await firebaseAdmin.auth().verifyIdToken(token);
     const profileSnapshot = await getFirestore().collection('users').doc(decoded.uid).get();
     if (!profileSnapshot.exists) return response.status(403).json({ error: 'School profile has not been provisioned.' });
-    request.schoolUser = { id: decoded.uid, email: decoded.email || null, ...profileSnapshot.data() };
+    request.schoolUser = { id: decoded.uid, email: decoded.email || null, ...profileSnapshot.data(), role: decoded.role || profileSnapshot.data().role, linkedStudents: decoded.linkedStudents || profileSnapshot.data().linkedStudents || profileSnapshot.data().studentIds || [] };
     request.firebaseUser = true;
     return next();
   } catch (error) {

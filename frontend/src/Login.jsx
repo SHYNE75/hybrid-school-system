@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { ArrowRight, BookOpen, GraduationCap, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, GraduationCap, ShieldCheck, Users } from 'lucide-react';
 import { firebaseAuth } from './firebase.js';
+import { apiRequest } from './api/client.js';
 
 const roles = [
   { id: 'student', label: 'Student', icon: GraduationCap },
   { id: 'teacher', label: 'Teacher', icon: BookOpen },
   { id: 'parent', label: 'Parent', icon: Users },
+  { id: 'admin', label: 'Admin', icon: ShieldCheck },
 ];
 
 function Login({ onAuthenticated }) {
@@ -29,27 +31,55 @@ function Login({ onAuthenticated }) {
     try {
       if (firebaseAuth) {
         const user = await firebaseAuth.authenticate(mode, { email, password, name: name.trim() });
-        const profileResponse = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/profile`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.idToken}` },
-          body: JSON.stringify({ role }),
-        });
-        const profileResult = await profileResponse.json();
-        if (!profileResponse.ok) throw new Error(profileResult.error || 'Unable to load your school profile.');
+        let profileResult;
+        try {
+          profileResult = await apiRequest('/api/auth/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.idToken}` },
+            body: JSON.stringify({ role }),
+          });
+        } catch (profileError) {
+          const unavailable = /Firebase Admin|Firebase credential|could not load|cannot reach|non-JSON|HTML/i.test(profileError.message);
+          if (!unavailable) throw profileError;
+
+          let refreshedUser;
+          try {
+            refreshedUser = await firebaseAuth.refreshIdToken(user.refreshToken);
+          } catch {
+            refreshedUser = { id_token: user.idToken, refresh_token: user.refreshToken };
+          }
+          onAuthenticated({
+            id: user.localId,
+            email: user.email,
+            name: name.trim() || user.displayName || user.email?.split('@')[0] || 'School user',
+            role,
+            studentIds: role === 'student' ? [user.localId] : [],
+            linkedStudents: [],
+            token: refreshedUser.id_token,
+            refreshToken: refreshedUser.refresh_token,
+            provider: 'firebase',
+            limitedMode: true,
+          });
+          setPassword('');
+          return;
+        }
+
+        const refreshedUser = await firebaseAuth.refreshIdToken(user.refreshToken);
         onAuthenticated({
           ...profileResult.user,
           name: profileResult.user.name || user.displayName || name.trim() || email.split('@')[0],
-          token: user.idToken,
+          token: refreshedUser.id_token,
+          refreshToken: refreshedUser.refresh_token,
           provider: 'firebase',
+          limitedMode: false,
         });
+        setPassword('');
       } else {
-        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/${mode}`, {
+        const result = await apiRequest(`/api/auth/${mode}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: name.trim(), email, password, role }),
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Unable to sign in.');
         onAuthenticated({ ...result.user, token: result.token, provider: 'jwt' });
       }
     } catch (submitError) {

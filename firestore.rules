@@ -5,20 +5,40 @@ service cloud.firestore {
       return request.auth != null;
     }
     function profile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return request.auth.token;
     }
     function hasRole(role) {
       return signedIn() && profile().role == role;
     }
     function linkedStudent(studentId) {
-      return hasRole('parent') && studentId in profile().studentIds;
+      return hasRole('parent') && studentId in profile().linkedStudents;
+    }
+
+    match /students/{studentId} {
+      allow read: if (hasRole('student') && request.auth.uid == studentId)
+        || (hasRole('parent') && linkedStudent(studentId));
+      allow update: if hasRole('student') && request.auth.uid == studentId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens', 'lastSeenAt']);
+      allow create, delete: if false;
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if hasRole('teacher') && request.auth.uid == teacherId;
+      allow update: if hasRole('teacher') && request.auth.uid == teacherId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens', 'lastSeenAt']);
+      allow create, delete: if false;
+    }
+
+    match /parents/{parentId} {
+      allow read: if hasRole('parent') && request.auth.uid == parentId;
+      allow update: if hasRole('parent') && request.auth.uid == parentId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens', 'lastSeenAt']);
+      allow create, delete: if false;
     }
 
     match /users/{userId} {
-      allow read: if signedIn() && (request.auth.uid == userId || hasRole('teacher'));
-      allow create, delete: if false;
-      allow update: if signedIn() && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fcmTokens', 'lastSeenAt']);
+      allow read: if signedIn() && request.auth.uid == userId;
+      allow write: if false;
     }
 
     match /attendance/{recordId} {
@@ -48,6 +68,10 @@ service cloud.firestore {
     match /announcements/{announcementId} {
       allow read: if signedIn();
       allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if hasRole('admin');
     }
   }
 }

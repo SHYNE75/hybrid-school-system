@@ -228,7 +228,7 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
 .login-card-kicker { color: #8c9a8f; font-size: 9px; font-weight: 700; letter-spacing: 1.3px; }
 .login-card h2 { color: #2e3b33; font: 700 21px 'Manrope', sans-serif; margin-top: 8px; }
 .login-card-heading p { color: #929b93; font-size: 10px; margin-top: 6px; }
-.role-picker { background: #f5f6f2; border: 1px solid #eceee8; border-radius: 5px; display: grid; gap: 3px; grid-template-columns: repeat(3, 1fr); margin-bottom: 20px; padding: 3px; }
+.role-picker { background: #f5f6f2; border: 1px solid #eceee8; border-radius: 5px; display: grid; gap: 3px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 20px; padding: 3px; }
 .role-picker button { background: transparent; border: 0; border-radius: 4px; color: #89938b; cursor: pointer; font-size: 10px; height: 31px; }
 .role-picker button.selected { background: #fff; box-shadow: 0 1px 4px #2e3b3314; color: #385d45; font-weight: 700; }
 .login-card form { display: grid; gap: 14px; }
@@ -346,6 +346,14 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
 .announcement-mark { align-items: center; background: #f7f2e4; border-radius: 5px; color: #aa8d50; display: flex; flex: 0 0 auto; height: 30px; justify-content: center; width: 30px; }
 .announcement-record > div { flex: 1; }.announcement-record p { color: #7f8a81; font-size: 10px; line-height: 1.6; margin-top: 3px; }
 .push-enable { margin-left: auto; }.push-message { background: #edf4eb; border-radius: 4px; color: #55775f; font-size: 10px; margin-bottom: 10px; padding: 9px; }
+.provisioning-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.provisioning-form { align-content: start; display: grid; gap: 11px; }
+.provisioning-form .feature-heading { margin-bottom: 4px; }
+.provisioning-form > label { color: #58655c; display: grid; font-size: 9px; font-weight: 600; gap: 6px; }
+.provisioning-form input, .provisioning-form textarea { background: #fff; border: 1px solid #e6e9e2; border-radius: 4px; color: #344238; font: 10px 'DM Sans', sans-serif; min-height: 36px; outline: none; padding: 8px 10px; resize: vertical; }
+.provisioning-form input:focus, .provisioning-form textarea:focus { border-color: #84a187; box-shadow: 0 0 0 3px #eaf1e9; }
+.setup-link { background: #edf4eb; border-radius: 5px; color: #45654c; display: grid; font-size: 10px; gap: 7px; grid-column: 1 / -1; padding: 13px; }
+.setup-link a { color: #315e4a; font-weight: 700; }.setup-link span { color: #79887b; font-size: 9px; }
 @media (max-width: 760px) {
   .feature-panel { padding: 14px; }
   .attendance-tools { grid-template-columns: 1fr; }
@@ -353,6 +361,7 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
   .fee-record { gap: 8px; grid-template-columns: minmax(100px, 1fr) auto; padding: 10px 0; }
   .fee-record .record-status { justify-self: start; }
   .fee-record .small-feature-button { justify-self: end; }
+  .provisioning-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 420px) {
   .feature-form-grid { grid-template-columns: 1fr; }
@@ -362,3 +371,7 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
   .student-qr { align-items: flex-start; gap: 12px; }
   .student-qr svg { height: 100px; width: 100px; }
 }
+
+.limited-mode-banner { align-items: center; background: #fff8e7; border: 1px solid #eadbaf; border-radius: 7px; color: #776640; display: flex; gap: 10px; margin-bottom: 14px; padding: 10px 12px; }
+.limited-mode-banner strong { color: #80652f; font-size: 10px; white-space: nowrap; }
+.limited-mode-banner span { font-size: 9px; line-height: 1.5; }

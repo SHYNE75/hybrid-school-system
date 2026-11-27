@@ -30,21 +30,30 @@ The frontend is available at `http://localhost:5173`; the backend health check i
 
 ## Account setup and data model
 
-Firebase Auth handles student registration and sign-in. The API verifies Firebase ID tokens with the Admin SDK and resolves each role from `users/{uid}` in Firestore; it does not trust the role selector in the browser. A missing profile is created as a student. Provision teacher and parent profiles in the Firebase console before those users sign in. Parent profiles must have `studentIds: ["student-firebase-uid", ...]` to scope attendance, grades, and fees.
+Firebase Auth handles registration and sign-in. The API verifies Firebase ID tokens with the Admin SDK, stores a role-specific record, and sets a Firebase custom `role` claim; it does not trust the role selector in the browser. Every Firebase login creates/repairs the matching role document. A new account defaults to student unless its UID is included in `ADMIN_UIDS`.
+
+To bootstrap an administrator, create/sign in the admin account in Firebase Auth, copy its UID from the Firebase console, then set `ADMIN_UIDS` to that UID in the backend environment and restart the API. The first profile login will provision the admin role and claim. Additional admin UIDs may be comma-separated. Only admins can call `POST /addTeacher`, `POST /addStudent`, and `POST /addParent` (the `/api/...` aliases are also mounted).
+
+Teacher/parent routes create Firebase Auth accounts when needed, write `teachers/{uid}` or `parents/{uid}` plus `users/{uid}`, and return a password setup link. Deliver that link through a private approved channel. Parent `linkedStudents` must contain existing Firebase student UIDs. Student signup writes `students/{uid}` using the authenticated Firebase UID.
 
 Collections used by the API:
 
-- `users/{uid}`: `name`, `email`, `role`, `studentIds`, and `fcmTokens`.
+- `users/{uid}`: shared identity data and lookup profile.
+- `students/{uid}`: `name`, `email`, `role`, `fcmTokens`, and timestamps.
+- `teachers/{uid}`: `name`, `email`, `role`, and timestamps.
+- `parents/{uid}`: `name`, `email`, `role`, and `linkedStudents` UID array.
 - `attendance/{studentId_YYYY-MM-DD}`: `studentId`, `status`, `date`, `source`, and `markedBy`.
 - `grades/{gradeId}`: `studentId`, `subject`, `assessment`, `score`, `maxScore`, `report`, and `teacherId`.
 - `fees/{feeId}`: `studentId`, `title`, `amountKobo` (integer minor units), `dueDate`, and `status`.
 - `payments/{reference}` and `announcements/{announcementId}`: written by the backend only.
 
-Apply Firestore rules and indexes using the Firebase CLI from the repository root: `firebase deploy --only firestore:rules,firestore:indexes`. Firestore rules deny browser writes to transactional records; protected writes go through the role-checked Express API. The `backend/schema.sql` MySQL table is only used by the optional JWT login/register fallback.
+Apply Firestore rules and indexes using the Firebase CLI from the repository root: `firebase deploy --only firestore:rules,firestore:indexes`. Rules use verified `request.auth.token.role` and `linkedStudents` claims, deny client writes to role records and transactional data, and grant admins the catch-all rule. Provisioning and data mutations go through the role-checked Express API. The `backend/schema.sql` MySQL table is only used by the optional JWT login/register fallback.
 
 ## Firebase configuration
 
 Set the frontend `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, and `VITE_FIREBASE_APP_ID` from the Firebase Web app config. For web push, generate a Web Push certificate in Firebase and set `VITE_FIREBASE_VAPID_KEY`; deploy the included `frontend/public/firebase-messaging-sw.js` over HTTPS. Set backend `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` from a service account. Never commit service-account JSON or private keys.
+
+For Render, add the Firebase JSON credential as a Secret File named exactly `serviceAccountKey.json`; Render mounts it at `/etc/secrets/serviceAccountKey.json`. Locally, the backend falls back to `backend/serviceAccountKey.json`. An optional `FIREBASE_SERVICE_ACCOUNT_PATH` overrides both paths. The credential filename pattern is ignored by Git.
 
 ## Paystack configuration
 

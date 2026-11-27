@@ -17,7 +17,7 @@ router.get('/', async (_request, response) => {
   }
 });
 
-router.post('/', requireRoles('teacher'), async (request, response) => {
+router.post('/', requireRoles('teacher', 'admin'), async (request, response) => {
   const firestore = getFirestore();
   const firebaseAdmin = getFirebaseAdmin();
   if (!firestore || !firebaseAdmin) return response.status(503).json({ error: 'Firestore and Firebase Cloud Messaging are not configured.' });

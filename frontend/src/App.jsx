@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   ArrowDownRight,
@@ -48,6 +48,14 @@ const navigationByRole = {
     { label: 'Grades', icon: BookOpen },
     { label: 'Fees', icon: CreditCard },
     { label: 'Notifications', icon: Bell, count: '3' },
+  ],
+  admin: [
+    { label: 'Overview', icon: LayoutDashboard },
+    { label: 'Provisioning', icon: Users },
+    { label: 'Attendance', icon: ClipboardCheck },
+    { label: 'Grades', icon: BookOpen },
+    { label: 'Fees', icon: CreditCard },
+    { label: 'Notifications', icon: Bell },
   ],
 };
 
@@ -133,6 +141,21 @@ const sectionContent = {
     panelNote: 'Open rate · This term',
     tableTitle: 'Latest announcements',
     tableNote: 'Shared with the school community',
+  },
+  Provisioning: {
+    eyebrow: 'Administrator tools',
+    title: 'User provisioning',
+    subtitle: 'Create staff and family accounts, and link parents to students.',
+    metrics: [
+      { label: 'Account types', value: '3', change: 'Student · Teacher · Parent', direction: 'up', icon: Users, tint: 'green' },
+      { label: 'Access control', value: 'On', change: 'Role claims verified', direction: 'up', icon: ClipboardCheck, tint: 'yellow' },
+      { label: 'Student sign-up', value: 'Open', change: 'Creates student record', direction: 'up', icon: GraduationCap, tint: 'blue' },
+      { label: 'Admin access', value: 'Private', change: 'UID allowlist only', direction: 'up', icon: Settings2, tint: 'coral' },
+    ],
+    panelTitle: 'Account provisioning',
+    panelNote: 'New role accounts and student links',
+    tableTitle: 'Provision users',
+    tableNote: 'Teacher and parent setup',
   },
 };
 
@@ -225,6 +248,30 @@ function App() {
   const filteredStudents = useMemo(() => students.filter((student) =>
     `${student.name} ${student.id} ${student.className}`.toLowerCase().includes(search.toLowerCase())), [search]);
 
+  useEffect(() => {
+    if (!session?.refreshToken || !firebaseAuth) return undefined;
+
+    const refreshSession = async () => {
+      try {
+        const refreshed = await firebaseAuth.refreshIdToken(session.refreshToken);
+        const nextSession = {
+          ...session,
+          token: refreshed.id_token,
+          refreshToken: refreshed.refresh_token,
+        };
+        sessionStorage.setItem('school-session', JSON.stringify(nextSession));
+        setSession(nextSession);
+      } catch {
+        sessionStorage.removeItem('school-session');
+        setSession(null);
+      }
+    };
+
+    refreshSession();
+    const interval = window.setInterval(refreshSession, 45 * 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [session?.refreshToken]);
+
   if (!session) return <Login onAuthenticated={establishSession} />;
 
   function establishSession(value) {
@@ -303,6 +350,7 @@ function App() {
         </header>
 
         <div className="page-content">
+          {session.limitedMode && <div className="limited-mode-banner"><strong>Limited mode</strong><span>Firebase Authentication is active, but server profile/Firestore setup is not configured. Use demo navigation only until Firebase Admin is connected.</span></div>}
           <section className="welcome-row">
             <div><div className="eyebrow"><span className="eyebrow-dot" />{current.eyebrow}</div><h1>{activeSection === 'Overview' ? `${current.title}, ${firstName}` : current.title}<span className="title-period">.</span></h1><p>{current.subtitle}</p></div>
             <button className="primary-button" onClick={() => notify(activeSection === 'Attendance' ? 'Attendance register opened.' : activeSection === 'Grades' && role === 'teacher' ? 'Grade entry is coming in the next module.' : 'Your workspace is up to date.')}><span>+</span>{activeSection === 'Attendance' && role === 'teacher' ? 'Take attendance' : activeSection === 'Grades' && role === 'teacher' ? 'Add grades' : 'Quick action'}</button>

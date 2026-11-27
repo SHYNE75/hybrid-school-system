@@ -2,7 +2,8 @@ const { Router } = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { getPool } = require('../config/database');
-const { getFirebaseAdmin, getFirestore } = require('../config/firebase');
+const { getFirebaseAdmin, getFirestore, getFirestoreFieldValue } = require('../config/firebase');
+const { addStudent, saveRoleProfile } = require('../services/firestoreService');
 
 const router = Router();
 const allowedRoles = new Set(['student', 'teacher', 'parent']);
@@ -84,33 +85,83 @@ router.post('/login', async (request, response) => {
 router.post('/profile', async (request, response) => {
   const firebaseAdmin = getFirebaseAdmin();
   const firestore = getFirestore();
-  if (!firebaseAdmin || !firestore) return response.status(503).json({ error: 'Firebase Admin credentials are not configured.' });
+  if (!firebaseAdmin || !firestore) {
+    return response.status(503).json({ error: 'Firebase Admin is not configured on the backend.' });
+  }
+
   const authorization = request.get('authorization') || '';
-  if (!authorization.startsWith('Bearer ')) return response.status(401).json({ error: 'Firebase ID token is required.' });
+  if (!authorization.startsWith('Bearer ')) {
+    return response.status(401).json({ error: 'Firebase ID token is required.' });
+  }
+
+  let decoded;
+  try {
+    decoded = await firebaseAdmin.auth().verifyIdToken(authorization.slice(7));
+  } catch (error) {
+    console.error('Firebase ID token verification failed:', error.message);
+    return response.status(401).json({ error: 'Your Firebase session is invalid or expired. Sign in again.' });
+  }
 
   try {
-    const decoded = await firebaseAdmin.auth().verifyIdToken(authorization.slice(7));
     const profileRef = firestore.collection('users').doc(decoded.uid);
     let profileSnapshot = await profileRef.get();
+
     if (!profileSnapshot.exists) {
-      const profile = {
-        uid: decoded.uid,
-        email: decoded.email || '',
-        name: decoded.name || '',
-        role: 'student',
-        studentIds: ['' + decoded.uid],
-        createdAt: new Date().toISOString(),
-      };
-      await profileRef.create(profile);
+      const adminUids = new Set((process.env.ADMIN_UIDS || '').split(',').map((uid) => uid.trim()).filter(Boolean));
+      const role = adminUids.has(decoded.uid) ? 'admin' : 'student';
+      if (role === 'admin') {
+        await saveRoleProfile({ uid: decoded.uid, name: decoded.name || decoded.email || 'Administrator', email: decoded.email || '', role });
+      } else {
+        await addStudent(decoded.uid, decoded.name || decoded.email?.split('@')[0] || 'Student', decoded.email || '');
+      }
       profileSnapshot = await profileRef.get();
     }
+
+    if (!profileSnapshot.exists) {
+      return response.status(500).json({ error: 'Firebase profile could not be created.' });
+    }
+
     const profile = profileSnapshot.data();
-    if (!['student', 'teacher', 'parent'].includes(profile.role)) return response.status(403).json({ error: 'Your school account has an unsupported role.' });
-    if (request.body.role && request.body.role !== profile.role) return response.status(403).json({ error: 'The selected role does not match your school account.' });
-    return response.json({ user: { id: decoded.uid, email: decoded.email || profile.email, name: profile.name || decoded.name || '', role: profile.role, studentIds: profile.studentIds || [] } });
+    if (!['student', 'teacher', 'parent', 'admin'].includes(profile.role)) {
+      return response.status(403).json({ error: 'Your school account has an unsupported role.' });
+    }
+    if (request.body.role && request.body.role !== profile.role) {
+      return response.status(403).json({ error: 'The selected role does not match your school account.' });
+    }
+
+    if (profile.role === 'admin') {
+      const adminUids = (process.env.ADMIN_UIDS || '').split(',').map((uid) => uid.trim()).filter(Boolean);
+      if (!adminUids.includes(decoded.uid)) {
+        return response.status(403).json({ error: 'Administrator access has not been provisioned for this account.' });
+      }
+    }
+
+    const roleCollection = `${profile.role}s`;
+    const roleSnapshot = await firestore.collection(roleCollection).doc(decoded.uid).get();
+    if (!roleSnapshot.exists) {
+      await saveRoleProfile({
+        uid: decoded.uid,
+        name: profile.name || decoded.name || profile.email,
+        email: decoded.email || profile.email,
+        role: profile.role,
+        linkedStudents: profile.linkedStudents || profile.studentIds || [],
+      });
+    }
+
+    const linkedStudents = profile.linkedStudents || profile.studentIds || [];
+    return response.json({
+      user: {
+        id: decoded.uid,
+        email: decoded.email || profile.email,
+        name: profile.name || decoded.name || profile.email?.split('@')[0] || 'School user',
+        role: profile.role,
+        studentIds: linkedStudents,
+        linkedStudents,
+      },
+    });
   } catch (error) {
-    console.error('Firebase profile verification failed:', error.message);
-    return response.status(401).json({ error: 'Unable to verify your school account.' });
+    console.error('Firebase profile processing failed:', error.message);
+    return response.status(500).json({ error: 'The backend could not load or create your school profile.' });
   }
 });
 
@@ -120,8 +171,7 @@ router.post('/device-token', require('../middleware/authenticate').authenticate,
   if (!firestore) return response.status(503).json({ error: 'Firestore is not configured.' });
   if (typeof token !== 'string' || token.length < 20 || token.length > 4096) return response.status(400).json({ error: 'Invalid notification token.' });
   try {
-    const { getFirebaseAdmin } = require('../config/firebase');
-    await firestore.collection('users').doc(request.schoolUser.id).set({ fcmTokens: getFirebaseAdmin().firestore.FieldValue.arrayUnion(token) }, { merge: true });
+    await firestore.collection('users').doc(request.schoolUser.id).set({ fcmTokens: getFirestoreFieldValue().arrayUnion(token) }, { merge: true });
     return response.status(204).end();
   } catch (error) {
     console.error('Device token save failed:', error.message);

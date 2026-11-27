@@ -32,7 +32,7 @@ router.get('/', async (request, response) => {
   }
 });
 
-router.post('/', requireRoles('teacher'), async (request, response) => {
+router.post('/', requireRoles('teacher', 'admin'), async (request, response) => {
   const firestore = getFirestore();
   if (!firestore) return response.status(503).json({ error: 'Firestore is not configured.' });
   const { studentId, subject, assessment, score, maxScore = 100, report } = request.body;
