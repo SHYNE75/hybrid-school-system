@@ -41,7 +41,10 @@ function Login({ onAuthenticated }) {
 				if (!response.ok) throw new Error(result.error || 'Unable to check setup status.');
 				setSetupRequired(Boolean(result.setupRequired));
 			})
-			.catch((statusError) => setError(statusError.message))
+			.catch((statusError) => {
+				setSetupRequired(true);
+				setError(statusError.message);
+			})
 			.finally(() => setSetupChecking(false));
 	}, []);
 
