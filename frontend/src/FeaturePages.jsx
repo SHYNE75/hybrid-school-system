@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { QRCodeSVG } from 'qrcode.react';
-import { ArrowRight, Bell, Check, CreditCard, GraduationCap, QrCode, Send, UserRoundCheck } from 'lucide-react';
+import { ArrowRight, Bell, BookOpen, Check, CreditCard, GraduationCap, QrCode, Search, Send, UserRoundCheck, Users } from 'lucide-react';
 import { listenForMessages, registerForNotifications } from './firebase.js';
 import { apiRequest as requestApi } from './api/client.js';
 
@@ -138,10 +138,68 @@ function FeesPage({ session, role, notify }) {
   return <section className="feature-workspace"><div className="feature-panel"><div className="feature-heading"><span className="feature-icon"><CreditCard size={17} /></span><div><h2>School fees</h2><p>Secure payments are processed by Paystack.</p></div></div>{error && <p className="feature-error" role="alert">{error}</p>}<div className="record-list">{records.map((fee) => <article className="fee-record" key={fee.id}><div><strong>{fee.title || fee.description || 'School fee'}</strong><small>Due {fee.dueDate || 'date not set'} · {fee.studentId}</small></div><strong className="fee-amount">₦{(fee.amountKobo / 100).toLocaleString()}</strong><span className={`record-status ${fee.status}`}>{fee.status}</span>{role === 'parent' && fee.status !== 'paid' && <button className="feature-button small-feature-button" onClick={() => pay(fee)} disabled={paying === fee.id}>{paying === fee.id ? 'Opening…' : 'Pay now'}<CreditCard size={14} /></button>}</article>)}{!records.length && !error && <p className="feature-empty">No fees are linked to this parent account yet.</p>}</div></div></section>;
 }
 
+function AdminOverviewPage({ session }) {
+  const [overview, setOverview] = useState(null);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    apiRequest('/api/admin/overview', session)
+      .then((result) => { if (active) setOverview(result); })
+      .catch((loadError) => { if (active) setError(loadError.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [session.token]);
+
+  const accounts = (overview?.accounts || []).filter((account) =>
+    `${account.name} ${account.email} ${account.role} ${account.uid}`.toLowerCase().includes(search.toLowerCase()));
+  const counts = overview?.counts || {};
+  const summaryCards = [
+    { label: 'Total accounts', value: counts.total || 0, icon: Users, tint: 'green' },
+    { label: 'Students', value: counts.students || 0, icon: GraduationCap, tint: 'yellow' },
+    { label: 'Teachers', value: counts.teachers || 0, icon: BookOpen, tint: 'blue' },
+    { label: 'Parents', value: counts.parents || 0, icon: Users, tint: 'coral' },
+  ];
+
+  return <section className="feature-workspace admin-overview">
+    <div className="metric-grid admin-account-counts">
+      {summaryCards.map(({ label, value, icon: Icon, tint }) => <article className="metric-card" key={label}>
+        <div className="metric-top"><span>{label}</span><span className={`metric-icon ${tint}`}><Icon size={17} /></span></div>
+        <div className="metric-value">{value}</div>
+      </article>)}
+    </div>
+    <div className="feature-panel">
+      <div className="admin-accounts-heading">
+        <div className="feature-heading"><span className="feature-icon"><Users size={17} /></span><div>
+          <h2>{overview?.schoolName || session.schoolName || 'School'} accounts</h2>
+          <p>Every administrator, teacher, student, and parent in this school.</p>
+        </div></div>
+        <label className="table-search admin-account-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search accounts" aria-label="Search school accounts" /></label>
+      </div>
+      {error && <p className="feature-error" role="alert">{error}</p>}
+      {loading ? <p className="feature-empty">Loading school accounts…</p> : error ? null : accounts.length ? <div className="table-wrap">
+        <table className="admin-account-table"><thead><tr><th>NAME</th><th>EMAIL</th><th>ROLE</th><th>FIREBASE UID</th><th>LINKED STUDENTS</th><th>ADDED</th></tr></thead>
+          <tbody>{accounts.map((account) => <tr key={account.uid}>
+            <td><strong>{account.name || '—'}</strong></td>
+            <td>{account.email || '—'}</td>
+            <td><span className={`admin-role-badge ${account.role}`}>{account.role}</span></td>
+            <td><code className="admin-account-uid" title={account.uid}>{account.uid}</code></td>
+            <td>{account.role === 'parent' ? account.linkedStudentCount : '—'}</td>
+            <td>{account.createdAt ? new Date(account.createdAt).toLocaleDateString() : '—'}</td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <p className="feature-empty">{search ? 'No accounts match your search.' : 'No school accounts have been added yet.'}</p>}
+    </div>
+  </section>;
+}
+
 function NotificationsPage({ role, session, notify }) {
   const [records, setRecords] = useState([]);
   const [error, setError] = useState('');
   const [pushMessage, setPushMessage] = useState('');
+  const [sending, setSending] = useState(false);
 
   async function loadAnnouncements() {
     try { const result = await apiRequest('/api/announcements', session); setRecords(result.records); setError(''); }
@@ -157,13 +215,17 @@ function NotificationsPage({ role, session, notify }) {
 
   async function publish(event) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setSending(true);
+    setError('');
     try {
       const result = await apiRequest('/api/announcements', session, { method: 'POST', body: JSON.stringify({ title: form.get('title'), body: form.get('body'), audience: form.get('audience') }) });
-      event.currentTarget.reset();
-      notify(`Announcement published${result.pushRecipients ? ` to ${result.pushRecipients} devices` : ''}.`);
+      formElement.reset();
+      notify(result.pushWarning || `${role === 'admin' ? 'Message sent' : 'Announcement published'}${result.pushRecipients ? ` to ${result.pushRecipients} devices` : ''}.`);
       await loadAnnouncements();
     } catch (publishError) { setError(publishError.message); }
+    finally { setSending(false); }
   }
 
   async function enablePush() {
@@ -175,8 +237,8 @@ function NotificationsPage({ role, session, notify }) {
     } catch (pushError) { setError(pushError.message); }
   }
 
-  return <section className="feature-workspace"><div className="feature-panel"><div className="feature-heading"><span className="feature-icon"><Bell size={17} /></span><div><h2>School announcements</h2><p>Updates and reminders from your school community.</p></div><button className="quiet-button push-enable" onClick={enablePush}>Enable push</button></div>{pushMessage && <div className="push-message">{pushMessage}</div>}{error && <p className="feature-error" role="alert">{error}</p>}
-    {['teacher', 'admin'].includes(role) && <form className="announcement-form" onSubmit={publish}><label>Title<input name="title" minLength="3" maxLength="120" required /></label><label>Message<textarea name="body" rows="3" minLength="3" maxLength="2000" required /></label><div className="announcement-submit"><select name="audience" defaultValue="all"><option value="all">All school</option><option value="students">Students</option><option value="parents">Parents</option><option value="teachers">Teachers</option></select><button className="feature-button">Publish announcement<Send size={15} /></button></div></form>}
+  return <section className="feature-workspace"><div className="feature-panel"><div className="feature-heading"><span className="feature-icon"><Bell size={17} /></span><div><h2>{role === 'admin' ? 'Send a school message' : 'School announcements'}</h2><p>{role === 'admin' ? 'Send an update to everyone or a specific school group.' : 'Updates and reminders from your school community.'}</p></div><button className="quiet-button push-enable" onClick={enablePush}>Enable push</button></div>{pushMessage && <div className="push-message">{pushMessage}</div>}{error && <p className="feature-error" role="alert">{error}</p>}
+    {['teacher', 'admin'].includes(role) && <form className="announcement-form" onSubmit={publish}><label>Title<input name="title" minLength="3" maxLength="120" required /></label><label>Message<textarea name="body" rows="3" minLength="3" maxLength="2000" required /></label><div className="announcement-submit"><select name="audience" defaultValue="all"><option value="all">All school</option><option value="students">Students</option><option value="parents">Parents</option><option value="teachers">Teachers</option></select><button className="feature-button" disabled={sending}>{sending ? 'Sending…' : role === 'admin' ? 'Send message' : 'Publish announcement'}<Send size={15} /></button></div></form>}
     <div className="record-list announcement-list">{records.map((record) => <article className="announcement-record" key={record.id}><span className="announcement-mark"><Bell size={15} /></span><div><strong>{record.title}</strong><small>{record.audience} · {new Date(record.createdAt).toLocaleString()}</small><p>{record.body}</p></div></article>)}{!records.length && !error && <p className="feature-empty">No announcements have been posted.</p>}</div></div></section>;
 }
 
@@ -187,7 +249,8 @@ function ProvisioningPage({ session, notify }) {
 
   async function submit(event, kind) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const body = Object.fromEntries(form.entries());
     if (kind === 'Parent') body.linkedStudents = String(body.linkedStudents).split(/[\s,]+/).map((uid) => uid.trim()).filter(Boolean);
     setSaving(true);
@@ -195,7 +258,7 @@ function ProvisioningPage({ session, notify }) {
     setSetupLink('');
     try {
       const result = await apiRequest(`/api/add${kind}`, session, { method: 'POST', body: JSON.stringify(body) });
-      event.currentTarget.reset();
+      formElement.reset();
       setSetupLink(result[kind.toLowerCase()].passwordSetupLink || '');
       notify(`${kind} account provisioned.`);
     } catch (submitError) { setError(submitError.message); }
@@ -203,16 +266,18 @@ function ProvisioningPage({ session, notify }) {
   }
 
   return <section className="feature-workspace provisioning-grid">
-    <form className="feature-panel provisioning-form" onSubmit={(event) => submit(event, 'Teacher')}><div className="feature-heading"><span className="feature-icon"><BookOpen size={17} /></span><div><h2>Add teacher</h2><p>Creates Auth account, teacher document, and role claims.</p></div></div><label>Name<input name="name" minLength="2" required /></label><label>Email<input name="email" type="email" required /></label><button className="feature-button" disabled={saving}>{saving ? 'Creating…' : 'Add teacher'}<ArrowRight size={15} /></button></form>
-    <form className="feature-panel provisioning-form" onSubmit={(event) => submit(event, 'Parent')}><div className="feature-heading"><span className="feature-icon"><Users size={17} /></span><div><h2>Add parent</h2><p>Links the parent account to existing student UIDs.</p></div></div><label>Name<input name="name" minLength="2" required /></label><label>Email<input name="email" type="email" required /></label><label>Linked student UIDs<textarea name="linkedStudents" rows="3" placeholder="One UID per line" required /></label><button className="feature-button" disabled={saving}>{saving ? 'Creating…' : 'Add parent'}<ArrowRight size={15} /></button></form>
-    <form className="feature-panel provisioning-form" onSubmit={(event) => submit(event, 'Student')}><div className="feature-heading"><span className="feature-icon"><GraduationCap size={17} /></span><div><h2>Add existing student</h2><p>Links an existing Firebase Auth user to the student collection.</p></div></div><label>Firebase UID<input name="uid" required /></label><label>Name<input name="name" minLength="2" required /></label><label>Email<input name="email" type="email" required /></label><button className="feature-button" disabled={saving}>{saving ? 'Saving…' : 'Add student'}<ArrowRight size={15} /></button></form>
+    <form className="feature-panel provisioning-form" onSubmit={(event) => submit(event, 'Teacher')}><div className="feature-heading"><span className="feature-icon"><BookOpen size={17} /></span><div><h2>Create teacher account</h2><p>Creates the Firebase login, teacher profile, and role access.</p></div></div><label>Name<input name="name" minLength="2" required /></label><label>Email<input name="email" type="email" required /></label><button className="feature-button" disabled={saving}>{saving ? 'Creating…' : 'Create teacher'}<ArrowRight size={15} /></button></form>
+    <form className="feature-panel provisioning-form" onSubmit={(event) => submit(event, 'Parent')}><div className="feature-heading"><span className="feature-icon"><Users size={17} /></span><div><h2>Create parent account</h2><p>Links this parent to students from the account overview.</p></div></div><label>Name<input name="name" minLength="2" required /></label><label>Email<input name="email" type="email" required /></label><label>Linked student UIDs<textarea name="linkedStudents" rows="3" placeholder="One student UID per line" required /></label><button className="feature-button" disabled={saving}>{saving ? 'Creating…' : 'Create parent'}<ArrowRight size={15} /></button></form>
+    <form className="feature-panel provisioning-form" onSubmit={(event) => submit(event, 'Student')}><div className="feature-heading"><span className="feature-icon"><GraduationCap size={17} /></span><div><h2>Create student account</h2><p>Creates a Firebase login and student profile.</p></div></div><label>Name<input name="name" minLength="2" required /></label><label>Email<input name="email" type="email" required /></label><button className="feature-button" disabled={saving}>{saving ? 'Creating…' : 'Create student'}<ArrowRight size={15} /></button></form>
     {error && <p className="feature-error" role="alert">{error}</p>}
     {setupLink && <div className="setup-link"><strong>One-time password setup link</strong><a href={setupLink} target="_blank" rel="noreferrer">Open account setup</a><span>Send this link to the account holder using your approved private channel.</span></div>}
   </section>;
 }
 
 function FeaturePages({ activeSection, role, session, notify }) {
-  if (activeSection === 'Provisioning' && role === 'admin') return <ProvisioningPage session={session} notify={notify} />;
+  if (activeSection === 'Overview' && role === 'admin') return <AdminOverviewPage session={session} />;
+  if (['Accounts', 'Provisioning'].includes(activeSection) && role === 'admin') return <ProvisioningPage session={session} notify={notify} />;
+  if (activeSection === 'Messages' && role === 'admin') return <NotificationsPage role={role} session={session} notify={notify} />;
   if (activeSection === 'Attendance') return <AttendancePage role={role} session={session} notify={notify} />;
   if (activeSection === 'Grades') return <GradesPage role={role} session={session} notify={notify} />;
   if (activeSection === 'Fees' && ['parent', 'admin'].includes(role)) return <FeesPage session={session} role={role} notify={notify} />;

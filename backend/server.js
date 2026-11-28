@@ -8,6 +8,7 @@ const gradesRoutes = require('./src/routes/grades');
 const feesRoutes = require('./src/routes/fees');
 const { router: paymentRoutes, webhookRouter } = require('./src/routes/payments');
 const announcementRoutes = require('./src/routes/announcements');
+const adminRoutes = require('./src/routes/admin');
 const provisioningRoutes = require('./src/routes/provisioning');
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/fees', feesRoutes);
 app.use('/api/payments/webhook', webhookRouter);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/announcements', announcementRoutes);
+app.use(adminRoutes);
 app.use(provisioningRoutes);
 
 app.use((request, response) => {

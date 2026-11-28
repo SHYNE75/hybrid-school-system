@@ -90,7 +90,10 @@ router.get('/setup-status', async (_request, response) => {
     const schoolSnapshot = await firestore.collection('schools').doc('main').get();
     const adminSnapshot = await firestore.collection('admins').limit(1).get();
     const setupRequired = !schoolSnapshot.exists && adminSnapshot.empty;
-    return response.json({ setupRequired });
+    return response.json({
+      setupRequired,
+      schoolName: schoolSnapshot.exists ? schoolSnapshot.data().name || '' : '',
+    });
   } catch (error) {
     console.error('Setup status failed:', error.message);
     return response.status(503).json({ error: 'Firebase/Firestore is temporarily unavailable.', setupRequired: true });
@@ -168,10 +171,10 @@ router.post('/profile', async (request, response) => {
 
   try {
     const profileRef = firestore.collection('users').doc(decoded.uid);
+    const schoolSnapshot = await firestore.collection('schools').doc('main').get();
     let profileSnapshot = await profileRef.get();
 
     if (!profileSnapshot.exists) {
-      const schoolSnapshot = await firestore.collection('schools').doc('main').get();
       const selectedRole = request.body.role;
 
       if (!schoolSnapshot.exists) {
@@ -219,6 +222,7 @@ router.post('/profile', async (request, response) => {
         role: profile.role,
         studentIds: linkedStudents,
         linkedStudents,
+        schoolName: schoolSnapshot.exists ? schoolSnapshot.data().name || '' : '',
       },
     });
   } catch (error) {

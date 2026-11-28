@@ -7,4 +7,5 @@ dist/
 !.env.example
 **/serviceAccountKey*.json
 **/*service-account*.json
+backend/vvff.json
 npm-debug.log*

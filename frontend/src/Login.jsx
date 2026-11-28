@@ -23,6 +23,7 @@ function Login({ onAuthenticated }) {
 	const [schoolAddress, setSchoolAddress] = useState('');
 	const [setupRequired, setSetupRequired] = useState(false);
 	const [setupChecking, setSetupChecking] = useState(true);
+	const [configuredSchoolName, setConfiguredSchoolName] = useState('');
 	const [resetSent, setResetSent] = useState(false);
 	const [error, setError] = useState('');
 	const [loading, setLoading] = useState(false);
@@ -40,6 +41,7 @@ function Login({ onAuthenticated }) {
 				const result = await response.json();
 				if (!response.ok) throw new Error(result.error || 'Unable to check setup status.');
 				setSetupRequired(Boolean(result.setupRequired));
+				setConfiguredSchoolName(typeof result.schoolName === 'string' ? result.schoolName : '');
 			})
 			.catch((statusError) => {
 				setSetupRequired(true);
@@ -134,6 +136,7 @@ function Login({ onAuthenticated }) {
 			setPassword('');
 			setConfirmPassword('');
 			setSetupRequired(false);
+			setConfiguredSchoolName(schoolName.trim());
 		} catch (setupError) {
 			setError(setupError.message || 'Unable to create the school administrator account.');
 		} finally {
@@ -170,7 +173,7 @@ function Login({ onAuthenticated }) {
 		<main className="login-screen">
 			<div className="login-topline">
 				<a className="brand" href="#login"><span className="brand-mark"><span /></span><span className="brand-name">fieldnote<span className="brand-period">.</span></span></a>
-				<span>ABIOLA ACADEMY <i>·</i> SCHOOL PORTAL</span>
+				<span>{configuredSchoolName ? configuredSchoolName.toUpperCase() : 'SCHOOL'} <i>·</i> SCHOOL PORTAL</span>
 			</div>
 
 			<section className="login-layout">
@@ -232,7 +235,7 @@ function Login({ onAuthenticated }) {
 				</section>
 			</section>
 
-			<footer className="login-footer"><span>© 2024 Abiola Academy</span><span>Learning happens everywhere <span className="footer-leaf">✳</span></span></footer>
+			<footer className="login-footer"><span>© {new Date().getFullYear()} {configuredSchoolName || 'School portal'}</span><span>Learning happens everywhere <span className="footer-leaf">✳</span></span></footer>
 		</main>
 	);
 }

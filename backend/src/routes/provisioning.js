@@ -30,9 +30,9 @@ async function createTeacher(request, response) {
 }
 
 async function createStudent(request, response) {
-  const { uid, name, email } = request.body;
-  if (typeof uid !== 'string' || !uid.trim() || !validateNameAndEmail(name, email)) return response.status(400).json({ error: 'Enter a valid Firebase UID, name, and email.' });
-  return addStudent(uid.trim(), name.trim(), email.trim());
+  const { name, email } = request.body;
+  if (!validateNameAndEmail(name, email)) return response.status(400).json({ error: 'Enter a valid name and email.' });
+  return addStudent(name.trim(), email.trim());
 }
 
 async function createParent(request, response) {

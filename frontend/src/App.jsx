@@ -51,11 +51,8 @@ const navigationByRole = {
   ],
   admin: [
     { label: 'Overview', icon: LayoutDashboard },
-    { label: 'Provisioning', icon: Users },
-    { label: 'Attendance', icon: ClipboardCheck },
-    { label: 'Grades', icon: BookOpen },
-    { label: 'Fees', icon: CreditCard },
-    { label: 'Notifications', icon: Bell },
+    { label: 'Accounts', icon: Users },
+    { label: 'Messages', icon: Megaphone },
   ],
 };
 
@@ -239,6 +236,7 @@ function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notice, setNotice] = useState('');
   const role = session?.role || 'student';
+  const schoolName = session?.schoolName?.trim() || 'School';
   const navigation = navigationByRole[role] || navigationByRole.student;
   const overview = roleOverview[role] || roleOverview.student;
   const firstName = (session?.name || session?.email?.split('@')[0] || '').split(' ')[0];
@@ -303,8 +301,8 @@ function App() {
         </a>
 
         <div className="school-switcher">
-          <div className="school-crest">A</div>
-          <div className="school-copy"><strong>Abiola Academy</strong><span>School workspace</span></div>
+          <div className="school-crest">{schoolName.slice(0, 1).toUpperCase()}</div>
+          <div className="school-copy"><strong>{schoolName}</strong><span>School workspace</span></div>
           <ChevronDown size={15} />
         </div>
 
@@ -320,11 +318,11 @@ function App() {
         </nav>
 
         <div className="sidebar-bottom">
-          <div className="term-card">
+          {role !== 'admin' && <div className="term-card">
             <div className="term-icon"><Sparkles size={15} /></div>
             <div><span>Current term</span><strong>Term 3 · 2024</strong></div>
             <ChevronRight size={15} />
-          </div>
+          </div>}
           <button className="nav-link" onClick={() => notify('Settings are ready to connect to your school account.')}><Settings2 size={17} /><span>Settings</span></button>
           <button className="nav-link" onClick={() => notify('Help centre is coming soon.')}><CircleHelp size={17} /><span>Help centre</span></button>
           <div className="sidebar-user">
@@ -338,24 +336,28 @@ function App() {
 
       <main className="main-area">
         <header className="topbar">
-          <div className="breadcrumbs"><span>Abiola Academy</span><ChevronRight size={14} /><strong>{activeSection}</strong></div>
+          <div className="breadcrumbs"><span>{schoolName}</span><ChevronRight size={14} /><strong>{activeSection}</strong></div>
           <div className="topbar-actions">
-            <label className="search-box"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students, classes..." aria-label="Search students and classes" /><kbd>⌘ K</kbd></label>
-            <div className="notification-wrap">
+            {role !== 'admin' && <label className="search-box"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search students, classes..." aria-label="Search students and classes" /><kbd>⌘ K</kbd></label>}
+            {role !== 'admin' && <div className="notification-wrap">
               <button className={`icon-button notification-button ${notificationsOpen ? 'pressed' : ''}`} aria-label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}><Bell size={18} /><i /></button>
               {notificationsOpen && <div className="notification-popover"><div className="popover-heading"><strong>Notifications</strong><span>3 new</span></div><p><b>Attendance needs attention</b><br />2 classes haven’t submitted their register.</p><p><b>Payment received</b><br />₦48,000 from T. Okafor · 12 min ago</p><p><b>New announcement</b><br />Sports day update is ready to review.</p></div>}
-            </div>
-            <div className="topbar-date"><CalendarDays size={16} /><span>Mon, 16 Sep</span></div>
+            </div>}
+            <div className="topbar-date"><CalendarDays size={16} /><span>{new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date())}</span></div>
           </div>
         </header>
 
         <div className="page-content">
           <section className="welcome-row">
-            <div><div className="eyebrow"><span className="eyebrow-dot" />{current.eyebrow}</div><h1>{activeSection === 'Overview' ? `${current.title}, ${firstName}` : current.title}<span className="title-period">.</span></h1><p>{current.subtitle}</p></div>
-            <button className="primary-button" onClick={() => notify(activeSection === 'Attendance' ? 'Attendance register opened.' : activeSection === 'Grades' && role === 'teacher' ? 'Grade entry is coming in the next module.' : 'Your workspace is up to date.')}><span>+</span>{activeSection === 'Attendance' && role === 'teacher' ? 'Take attendance' : activeSection === 'Grades' && role === 'teacher' ? 'Add grades' : 'Quick action'}</button>
+            {role === 'admin' ? <div>
+              <div className="eyebrow"><span className="eyebrow-dot" />SCHOOL ADMINISTRATION</div>
+              <h1>{activeSection === 'Overview' ? 'Account overview' : activeSection === 'Accounts' ? 'Manage accounts' : 'School messages'}<span className="title-period">.</span></h1>
+              <p>{activeSection === 'Overview' ? `A live view of every account at ${schoolName}.` : activeSection === 'Accounts' ? 'Create teacher, student, and parent accounts.' : 'Send an update to your school community.'}</p>
+            </div> : <div><div className="eyebrow"><span className="eyebrow-dot" />{current.eyebrow}</div><h1>{activeSection === 'Overview' ? `${current.title}, ${firstName}` : current.title}<span className="title-period">.</span></h1><p>{current.subtitle}</p></div>}
+            {role === 'admin' ? activeSection === 'Overview' && <button className="primary-button" onClick={() => setActiveSection('Accounts')}><span>+</span>Manage accounts</button> : <button className="primary-button" onClick={() => notify(activeSection === 'Attendance' ? 'Attendance register opened.' : activeSection === 'Grades' && role === 'teacher' ? 'Grade entry is coming in the next module.' : 'Your workspace is up to date.')}><span>+</span>{activeSection === 'Attendance' && role === 'teacher' ? 'Take attendance' : activeSection === 'Grades' && role === 'teacher' ? 'Add grades' : 'Quick action'}</button>}
           </section>
 
-          <section className="metric-grid" aria-label="Key school metrics">
+          {role !== 'admin' && <section className="metric-grid" aria-label="Key school metrics">
             {current.metrics.map(({ label, value, change, direction, icon: Icon, tint }) => (
               <article className="metric-card" key={label}>
                 <div className="metric-top"><span>{label}</span><span className={`metric-icon ${tint}`}><Icon size={17} strokeWidth={1.8} /></span></div>
@@ -363,10 +365,11 @@ function App() {
                 <div className="metric-change"><span className={direction === 'down' ? 'change-down' : ''}>{direction === 'down' ? <ArrowDownRight size={14} /> : <ArrowUpRight size={14} />}{change}</span>{activeSection === 'Overview' && label === 'Present today' ? <em>on track</em> : null}</div>
               </article>
             ))}
-          </section>
+          </section>}
 
-          {activeSection !== 'Overview' && <Suspense fallback={<section className="feature-workspace"><p className="feature-empty">Opening school records…</p></section>}><FeaturePages activeSection={activeSection} role={role} session={session} notify={notify} /></Suspense>}
+          {(activeSection !== 'Overview' || role === 'admin') && <Suspense fallback={<section className="feature-workspace"><p className="feature-empty">Opening school records…</p></section>}><FeaturePages activeSection={activeSection} role={role} session={session} notify={notify} /></Suspense>}
 
+          {role !== 'admin' && <>
           <section className={`dashboard-grid ${activeSection === 'Overview' ? '' : 'is-hidden'}`}>
             <article className="panel attendance-panel">
               <div className="panel-heading"><div><h2>{current.panelTitle}</h2><p>{current.panelNote}</p></div><button className="quiet-button">This week <ChevronDown size={14} /></button></div>
@@ -398,7 +401,8 @@ function App() {
             <div className="detail-list">{(detailItems[activeSection] || []).map((item) => <article className="detail-row" key={item.title}><span className="detail-marker" /><div className="detail-copy"><strong>{item.title}</strong><span>{item.subtitle}</span></div><span className="detail-value">{item.value}</span><span className={`detail-state ${item.state.toLowerCase()}`}>{item.state}</span><button className="icon-button small-icon" aria-label={`Open ${item.title}`} onClick={() => notify(`${item.title} details opened.`)}><ChevronRight size={16} /></button></article>)}</div>
             <div className="table-footer"><span>Showing <strong>{(detailItems[activeSection] || []).length}</strong> recent items</span><div><button className="icon-button pager-button" aria-label="Previous page"><ChevronLeft size={15} /></button><button className="icon-button pager-button" aria-label="Next page"><ChevronRight size={15} /></button></div></div>
           </section>}
-          <footer className="page-footer"><span>Fieldnote <i>·</i> Abiola Academy</span><span>Last synced just now <span className="sync-dot" /></span></footer>
+          </>}
+          <footer className="page-footer"><span>Fieldnote <i>·</i> {schoolName}</span><span>Last synced just now <span className="sync-dot" /></span></footer>
         </div>
       </main>
       {notice && <div className="toast" role="status"><Check size={16} />{notice}<button onClick={() => setNotice('')} aria-label="Dismiss"><X size={15} /></button></div>}

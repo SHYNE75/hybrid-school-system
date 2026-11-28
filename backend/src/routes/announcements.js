@@ -29,19 +29,34 @@ router.post('/', requireRoles('teacher', 'admin'), async (request, response) => 
   try {
     const announcement = { title: title.trim().slice(0, 120), body: body.trim().slice(0, 2000), audience, authorId: request.schoolUser.id, createdAt: new Date().toISOString() };
     const saved = await firestore.collection('announcements').add(announcement);
-    const profiles = await firestore.collection('users').get();
-    const tokens = profiles.docs
-      .filter((profile) => audience === 'all' || profile.data().role === audience.slice(0, -1))
-      .flatMap((profile) => profile.data().fcmTokens || [])
-      .slice(0, 500);
-    if (tokens.length) {
-      await firebaseAdmin.messaging().sendEachForMulticast({
-        tokens,
-        notification: { title: announcement.title, body: announcement.body.slice(0, 180) },
-        data: { announcementId: saved.id },
-      });
+    let pushRecipients = 0;
+    let pushWarning;
+    try {
+      const profiles = await firestore.collection('users').get();
+      const tokens = profiles.docs
+        .filter((profile) => audience === 'all' || profile.data().role === audience.slice(0, -1))
+        .flatMap((profile) => profile.data().fcmTokens || [])
+        .slice(0, 500);
+      if (tokens.length) {
+        const result = await firebaseAdmin.messaging().sendEachForMulticast({
+          tokens,
+          notification: { title: announcement.title, body: announcement.body.slice(0, 180) },
+          data: { announcementId: saved.id },
+        });
+        pushRecipients = result.successCount;
+        if (result.failureCount) {
+          pushWarning = `Message saved, but ${result.failureCount} device notification(s) could not be delivered.`;
+        }
+      }
+    } catch (error) {
+      console.error('Announcement notification delivery failed:', error.message);
+      pushWarning = 'Message saved, but push notifications could not be delivered.';
     }
-    return response.status(201).json({ announcement: { id: saved.id, ...announcement }, pushRecipients: tokens.length });
+    return response.status(201).json({
+      announcement: { id: saved.id, ...announcement },
+      pushRecipients,
+      ...(pushWarning ? { pushWarning } : {}),
+    });
   } catch (error) {
     console.error('Announcement publish failed:', error.message);
     return response.status(500).json({ error: 'Unable to publish announcement.' });

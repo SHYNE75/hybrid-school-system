@@ -4,6 +4,16 @@ function normalizeEmail(email) {
   return String(email).trim().toLowerCase();
 }
 
+async function findOrCreateAuthUser(admin, name, email) {
+  const normalizedEmail = normalizeEmail(email);
+  try {
+    return await admin.auth().getUserByEmail(normalizedEmail);
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') throw error;
+    return admin.auth().createUser({ email: normalizedEmail, displayName: String(name).trim() });
+  }
+}
+
 async function saveRoleProfile({ uid, name, email, role, linkedStudents = [] }) {
   const admin = getFirebaseAdmin();
   const firestore = getFirestore();
@@ -15,22 +25,28 @@ async function saveRoleProfile({ uid, name, email, role, linkedStudents = [] }) 
     throw new Error('The email does not match the Firebase account.');
   }
 
+  const roleRef = firestore.collection(`${role}s`).doc(uid);
+  const userRef = firestore.collection('users').doc(uid);
+  const [existingRole, existingProfile] = await Promise.all([roleRef.get(), userRef.get()]);
+  if (existingProfile.exists && existingProfile.data().role !== role) {
+    throw new Error('This account already has a different school role.');
+  }
+
+  const now = new Date().toISOString();
+  const createdAt = existingProfile.data()?.createdAt || existingRole.data()?.createdAt || now;
   const roleRecord = {
     uid,
     name: String(name).trim(),
     email: normalizedEmail,
     role,
-    updatedAt: new Date().toISOString(),
+    createdAt,
+    updatedAt: now,
   };
   if (role === 'parent') roleRecord.linkedStudents = [...new Set(linkedStudents)];
 
-  const roleRef = firestore.collection(`${role}s`).doc(uid);
-  const existingRole = await roleRef.get();
-  if (role === 'student') roleRecord.createdAt = existingRole.data()?.createdAt || new Date().toISOString();
-
   const batch = firestore.batch();
   batch.set(roleRef, roleRecord, { merge: true });
-  batch.set(firestore.collection('users').doc(uid), {
+  batch.set(userRef, {
     ...roleRecord,
     ...(role === 'parent' ? { studentIds: roleRecord.linkedStudents } : {}),
   }, { merge: true });
@@ -48,21 +64,20 @@ async function addTeacher(name, email) {
   const admin = getFirebaseAdmin();
   if (!admin) throw new Error('Firebase Admin credentials are not configured.');
   const normalizedEmail = normalizeEmail(email);
-  let userRecord;
-  try {
-    userRecord = await admin.auth().getUserByEmail(normalizedEmail);
-  } catch (error) {
-    if (error.code !== 'auth/user-not-found') throw error;
-    userRecord = await admin.auth().createUser({ email: normalizedEmail, displayName: String(name).trim() });
-  }
+  const userRecord = await findOrCreateAuthUser(admin, name, normalizedEmail);
   const teacher = await saveRoleProfile({ uid: userRecord.uid, name, email: normalizedEmail, role: 'teacher' });
   const passwordSetupLink = await admin.auth().generatePasswordResetLink(normalizedEmail);
   return { ...teacher, passwordSetupLink };
 }
 
-async function addStudent(uid, name, email) {
-  if (typeof uid !== 'string' || !uid.trim()) throw new Error('A Firebase UID is required.');
-  return saveRoleProfile({ uid: uid.trim(), name, email, role: 'student' });
+async function addStudent(name, email) {
+  const admin = getFirebaseAdmin();
+  if (!admin) throw new Error('Firebase Admin credentials are not configured.');
+  const normalizedEmail = normalizeEmail(email);
+  const userRecord = await findOrCreateAuthUser(admin, name, normalizedEmail);
+  const student = await saveRoleProfile({ uid: userRecord.uid, name, email: normalizedEmail, role: 'student' });
+  const passwordSetupLink = await admin.auth().generatePasswordResetLink(normalizedEmail);
+  return { ...student, passwordSetupLink };
 }
 
 async function addParent(name, email, linkedStudents) {
@@ -78,13 +93,7 @@ async function addParent(name, email, linkedStudents) {
   if (students.some((student) => !student.exists)) throw new Error('Every linked UID must belong to an existing student.');
 
   const normalizedEmail = normalizeEmail(email);
-  let userRecord;
-  try {
-    userRecord = await admin.auth().getUserByEmail(normalizedEmail);
-  } catch (error) {
-    if (error.code !== 'auth/user-not-found') throw error;
-    userRecord = await admin.auth().createUser({ email: normalizedEmail, displayName: String(name).trim() });
-  }
+  const userRecord = await findOrCreateAuthUser(admin, name, normalizedEmail);
   const parent = await saveRoleProfile({ uid: userRecord.uid, name, email: normalizedEmail, role: 'parent', linkedStudents: uniqueStudentIds });
   const passwordSetupLink = await admin.auth().generatePasswordResetLink(normalizedEmail);
   return { ...parent, passwordSetupLink };

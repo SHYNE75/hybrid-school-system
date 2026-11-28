@@ -354,6 +354,16 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
 .provisioning-form input:focus, .provisioning-form textarea:focus { border-color: #84a187; box-shadow: 0 0 0 3px #eaf1e9; }
 .setup-link { background: #edf4eb; border-radius: 5px; color: #45654c; display: grid; font-size: 10px; gap: 7px; grid-column: 1 / -1; padding: 13px; }
 .setup-link a { color: #315e4a; font-weight: 700; }.setup-link span { color: #79887b; font-size: 9px; }
+.admin-account-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.admin-accounts-heading { align-items: center; display: flex; gap: 14px; justify-content: space-between; }
+.admin-accounts-heading .feature-heading { margin-bottom: 12px; }
+.admin-account-search { flex: 0 0 190px; width: 190px; }
+.admin-account-table { min-width: 800px; }
+.admin-account-table td strong { color: #4b584f; font-size: 9px; font-weight: 600; }
+.admin-account-uid { background: #f7f8f4; border-radius: 3px; color: #718076; display: inline-block; font-size: 8px; max-width: 170px; overflow: hidden; padding: 3px 5px; text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; }
+.admin-role-badge { background: #eef5ee; border-radius: 10px; color: #67896a; display: inline-block; font-size: 8px; padding: 4px 7px; text-transform: capitalize; }
+.admin-role-badge.admin { background: #edf2f5; color: #69869a; }
+.admin-role-badge.parent { background: #faf3df; color: #a58a50; }
 @media (max-width: 760px) {
   .feature-panel { padding: 14px; }
   .attendance-tools { grid-template-columns: 1fr; }
@@ -362,6 +372,8 @@ td { border-top: 1px solid #f0f1ed; color: #7f8982; font-size: 9px; padding: 8px
   .fee-record .record-status { justify-self: start; }
   .fee-record .small-feature-button { justify-self: end; }
   .provisioning-grid { grid-template-columns: 1fr; }
+  .admin-accounts-heading { align-items: stretch; flex-direction: column; gap: 0; }
+  .admin-account-search { flex-basis: auto; margin: 0 0 12px auto; }
 }
 @media (max-width: 420px) {
   .feature-form-grid { grid-template-columns: 1fr; }
